@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+sqlalchemy
+streamlit
+pandas
+plotly
+psycopg[binary]
