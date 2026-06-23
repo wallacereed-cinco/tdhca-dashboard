@@ -30,11 +30,19 @@ from models import (
 # DB URL: allow `streamlit run app.py -- --db <url>`
 # --------------------------------------------------------------------------- #
 def _db_url() -> str:
+    # 1. Command-line flag (local use): streamlit run app.py -- --db <url>
     argv = sys.argv
     if "--db" in argv:
         i = argv.index("--db")
         if i + 1 < len(argv):
             return argv[i + 1]
+    # 2. Streamlit secrets (cloud deploy): set DATABASE_URL in app secrets
+    try:
+        if "DATABASE_URL" in st.secrets:
+            return st.secrets["DATABASE_URL"]
+    except Exception:
+        pass
+    # 3. Fallback: local SQLite file
     return "sqlite:///tdhca.db"
 
 
