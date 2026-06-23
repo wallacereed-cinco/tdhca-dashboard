@@ -64,12 +64,6 @@ def load_frames(db_url: str):
 
 props, snaps, ami, prog, units = load_frames(_db_url())
 
-# --- TEMP DIAGNOSTIC: remove once data shows correctly ---
-_url = _db_url()
-_kind = "Neon/Postgres" if _url.startswith("postgresql") else ("SQLite (local fallback!)" if _url.startswith("sqlite") else _url[:20])
-st.info(f"DEBUG — connected to: {_kind}  |  properties rows read: {len(props)}  |  snapshot rows read: {len(snaps)}")
-# --- end diagnostic ---
-
 st.title("TDHCA Vacancy Clearinghouse")
 st.caption("Texas affordable-housing supply & vacancy — sourced from TDHCA, snapshotted weekly.")
 
