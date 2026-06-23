@@ -136,7 +136,7 @@ with tab2:
     mix_g = mix.groupby(["bedroom_type", "accessible"], as_index=False)["num_units"].sum()
     mix_g["accessible"] = mix_g["accessible"].map({True: "Accessible", False: "Non-accessible"})
     if not mix_g.empty:
-        order = ["efficiency", "1br", "2br", "3br", "4br", "5br+"]
+        order = ["efficiency", "1br", "2br", "3br", "4br", "5br", "5br+", "6br+"]
         fig = px.bar(mix_g, x="bedroom_type", y="num_units", color="accessible",
                      category_orders={"bedroom_type": order}, barmode="group",
                      labels={"num_units": "Units", "bedroom_type": "Bedroom type"})

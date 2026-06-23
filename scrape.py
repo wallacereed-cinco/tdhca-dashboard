@@ -57,8 +57,10 @@ session.headers.update({
     "User-Agent": "TDHCA-MarketAnalysis/1.0 (contact: you@example.com)"
 })
 
-# The six non-accessible bedroom columns and six accessible ones, in order.
-BEDROOM_LABELS = ["efficiency", "1br", "2br", "3br", "4br", "5br+"]
+# Live TDHCA search rows have 19 cells (verified against Cameron County).
+# Non-accessible side lists 7 bedroom columns; accessible side lists 6.
+BEDROOMS_NONACC = ["efficiency", "1br", "2br", "3br", "4br", "5br", "6br+"]
+BEDROOMS_ACC = ["efficiency", "1br", "2br", "3br", "4br", "5br+"]
 
 
 # --------------------------------------------------------------------------- #
@@ -95,11 +97,20 @@ def search_county(county: str) -> list[dict]:
             continue
         tr = a.find_parent("tr")
         cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
+        # cell[0] mashes name + full address together; the project link's own
+        # text is the clean property name, so use it to split them.
+        link_name = a.get_text(" ", strip=True)
+        raw0 = cells[0] if cells else ""
+        addr = raw0
+        if link_name and raw0.startswith(link_name):
+            addr = raw0[len(link_name):].strip()
+        addr = re.sub(r"\s+", " ", addr.replace("\xa0", " ")).strip()
+        phone = cells[18] if len(cells) > 18 else ""
         rows.append({
             "project_id": int(m.group(1)),
-            "name": cells[0] if cells else "",
-            "address": cells[1] if len(cells) > 1 else "",
-            "phone": cells[19] if len(cells) > 19 else "",
+            "name": link_name or raw0,
+            "address": addr,
+            "phone": phone,
             "raw_cells": cells,
         })
     return rows
@@ -107,49 +118,49 @@ def search_county(county: str) -> list[dict]:
 
 def parse_search_row_units(row: dict) -> list[dict]:
     """
-    Turn the 20-cell search row into UnitSnapshot-shaped dicts.
+    Turn the verified 19-cell search row into UnitSnapshot-shaped dicts.
 
-    Cell layout (0-indexed):
-      0 name, 1 addr, 2 #30%-units, 3 disaster, 4 #811,
-      5-10  non-accessible bedroom unit counts (eff,1,2,3,4,5+)
+    Cell layout (0-indexed), confirmed against live Cameron County data:
+      0  name + address (mashed together)
+      1  #30%-income-restricted units
+      2  disaster-housing flag
+      3  #811 units
+      4-10  non-accessible bedroom unit counts (eff,1,2,3,4,5,6+)  [7 cols]
       11    non-accessible vacancies (single combined cell)
-      12-17 accessible bedroom unit counts (eff,1,2,3,4,5+)
-      18    accessible vacancies (single combined cell)
-      19    phone
+      12-17 accessible bedroom unit counts (eff,1,2,3,4,5+)        [6 cols]
+      18    phone
 
-    The site reports ONE vacancy figure per accessibility group, not per
-    bedroom. We attach that group vacancy total to the group as a synthetic
-    'all' bedroom bucket, and store per-bedroom unit counts with vacancies
-    left NULL — so supply (by bedroom) and vacancy (by group) are both
-    queryable without inventing per-bedroom vacancy data the site doesn't give.
+    The site reports one vacancy figure for the non-accessible group (cell 11).
+    There is no separate accessible-vacancy column in the live layout, so we
+    record the group vacancy under a synthetic 'all' bedroom bucket and leave
+    per-bedroom vacancies NULL — storing only what the site actually provides.
     """
     cells = row["raw_cells"]
     out = []
-    if len(cells) < 20:
+    if len(cells) < 19:
         return out
 
     def _int(x):
         x = re.sub(r"\D", "", x or "")
         return int(x) if x else None
 
-    groups = [
-        (False, cells[5:11], cells[11]),    # non-accessible counts + group vac
-        (True,  cells[12:18], cells[18]),   # accessible counts + group vac
-    ]
-    for accessible, counts, group_vac in groups:
-        for label, c in zip(BEDROOM_LABELS, counts):
-            n = _int(c)
-            if n:
-                out.append({
-                    "bedroom_type": label, "accessible": accessible,
-                    "num_units": n, "vacancies": None,
-                })
-        gv = _int(group_vac)
-        if gv is not None:
-            out.append({
-                "bedroom_type": "all", "accessible": accessible,
-                "num_units": None, "vacancies": gv,
-            })
+    # Non-accessible bedroom counts: cells 4..10
+    for label, c in zip(BEDROOMS_NONACC, cells[4:11]):
+        n = _int(c)
+        if n:
+            out.append({"bedroom_type": label, "accessible": False,
+                        "num_units": n, "vacancies": None})
+    # Non-accessible group vacancies: cell 11
+    nav = _int(cells[11])
+    if nav is not None:
+        out.append({"bedroom_type": "all", "accessible": False,
+                    "num_units": None, "vacancies": nav})
+    # Accessible bedroom counts: cells 12..17
+    for label, c in zip(BEDROOMS_ACC, cells[12:18]):
+        n = _int(c)
+        if n:
+            out.append({"bedroom_type": label, "accessible": True,
+                        "num_units": n, "vacancies": None})
     return out
 
 
